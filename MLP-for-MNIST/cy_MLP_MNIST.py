@@ -51,7 +51,7 @@ def run_training():
 		summary_writer = tf.summary.FileWriter(FLAGS.log_dir, sess.graph)
 		sess.run(init)
 
-		for step in range(FLAGS.max_steps):
+		for step in xrange(FLAGS.max_steps):
 			start_time = time.time()
 
 			feed_dict = fill_feed_dict(data_set.train, images_placeholder, labels_placeholder)
@@ -96,7 +96,7 @@ if __name__ == '__main__':
 	parser.add_argument(
 		'--max_steps',
 		type=int,
-		default=2000,
+		default=4000,
 		help='Number of steps to run trainer.'
 	)
 	parser.add_argument(
