@@ -5,28 +5,30 @@ import time
 import tensorflow as tf
 
 from tensorflow.examples.tutorials.mnist import input_data
-from tensorflow.examples.tutorials.mnist import mnist
+#from tensorflow.examples.tutorials.mnist import mnist
+import cy_mnist as mnist
 
 FLAGS = None
 
 def placeholder_inputs(batch_size):
 	images_placeholder = tf.placeholder(tf.float32, shape=(batch_size, mnist.IMAGE_PIXELS))
 	labels_placeholder = tf.placeholder(tf.int32, shape=(batch_size))
-	return images_placeholder, labels_placeholder
+	keep_prob_placeholder = tf.placeholder(tf.float32)
+	return images_placeholder, labels_placeholder, keep_prob_placeholder
 
-def fill_feed_dict(data_set, images_pl, labels_pl):
+def fill_feed_dict(data_set, images_pl, labels_pl, keep_prob_pl, keep_prob_value):
 	images_feed, labels_feed = data_set.next_batch(FLAGS.batch_size, FLAGS.fake_data)
 
-	feed_dict = {images_pl:images_feed, labels_pl:labels_feed}
+	feed_dict = {images_pl:images_feed, labels_pl:labels_feed, keep_prob_pl:keep_prob_value}
 	return feed_dict
 
-def do_eval(sess, eval_correct, images_placeholder, labels_placeholder, data_set):
+def do_eval(sess, eval_correct, images_placeholder, labels_placeholder, keep_prob_placeholder, data_set):
 	true_count = 0
 	steps_per_epoch = data_set.num_examples // FLAGS.batch_size
 	num_examples = steps_per_epoch * FLAGS.batch_size
 
 	for step in range(steps_per_epoch):
-		feed_dict = fill_feed_dict(data_set, images_placeholder, labels_placeholder)
+		feed_dict = fill_feed_dict(data_set, images_placeholder, labels_placeholder, keep_prob_placeholder, 1.0)
 		true_count += sess.run(eval_correct, feed_dict=feed_dict)
 	precision = float(true_count) / num_examples
 
@@ -36,9 +38,9 @@ def run_training():
 	data_set = input_data.read_data_sets(FLAGS.input_data_dir, FLAGS.fake_data)
 
 	with tf.Graph().as_default():
-		images_placeholder, labels_placeholder = placeholder_inputs(FLAGS.batch_size)
+		images_placeholder, labels_placeholder, keep_prob_placeholder = placeholder_inputs(FLAGS.batch_size)
 
-		logits = mnist.inference(images_placeholder, FLAGS.hidden1, FLAGS.hidden2)
+		logits = mnist.inference(images_placeholder, FLAGS.hidden1, FLAGS.hidden2, keep_prob_placeholder)
 		loss = mnist.loss(logits, labels_placeholder)
 		train_op = mnist.training(loss, FLAGS.learning_rate)
 		eval_correct = mnist.evaluation(logits, labels_placeholder)
@@ -54,14 +56,16 @@ def run_training():
 		for step in xrange(FLAGS.max_steps):
 			start_time = time.time()
 
-			feed_dict = fill_feed_dict(data_set.train, images_placeholder, labels_placeholder)
+			feed_dict = fill_feed_dict(data_set.train, images_placeholder, labels_placeholder, 
+										keep_prob_placeholder, FLAGS.keep_prob)
+
 			_, loss_value = sess.run([train_op, loss], feed_dict=feed_dict)
 
 			duration = time.time() - start_time
 
 			if step % 100 == 0:
 				print "step %d: loss = %.2f  (%.3f sec)" % (step, loss_value, duration)
-
+				
 				summary_str = sess.run(summary, feed_dict=feed_dict)
 				summary_writer.add_summary(summary_str, step)
 				summary_writer.flush()
@@ -71,11 +75,11 @@ def run_training():
 				saver.save(sess, checkpoint_file, global_step=step)
 
 				print 'Training Data Eval:'
-				do_eval(sess,eval_correct,images_placeholder,labels_placeholder,data_set.train)
+				do_eval(sess,eval_correct,images_placeholder,labels_placeholder,keep_prob_placeholder,data_set.train)
         			print 'Validation Data Eval:'
-				do_eval(sess,eval_correct,images_placeholder,labels_placeholder,data_set.validation)
+				do_eval(sess,eval_correct,images_placeholder,labels_placeholder,keep_prob_placeholder,data_set.validation)
 				print 'Test Data Eval:'
-				do_eval(sess,eval_correct,images_placeholder,labels_placeholder,data_set.test)
+				do_eval(sess,eval_correct,images_placeholder,labels_placeholder,keep_prob_placeholder,data_set.test)
 
 
 def main(_):
@@ -96,7 +100,7 @@ if __name__ == '__main__':
 	parser.add_argument(
 		'--max_steps',
 		type=int,
-		default=4000,
+		default=2000,
 		help='Number of steps to run trainer.'
 	)
 	parser.add_argument(
@@ -134,6 +138,12 @@ if __name__ == '__main__':
 		default=False,
 		help='If true, uses fake data for unit testing.',
 		action='store_true'
+	)
+	parser.add_argument(
+		'--keep_prob',
+		type=int,
+		default=1.0,
+		help='The scale for dropout.'
 	)
 
 	FLAGS, unparsed = parser.parse_known_args()
